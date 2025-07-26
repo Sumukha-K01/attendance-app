@@ -2,7 +2,7 @@ from django.shortcuts import render
 
 # Create your views here.
 from rest_framework import generics
-from .models import Student
+from attendance.models import Student
 from .serializers import StudentSerializer
 from rest_framework.permissions import IsAuthenticated
 

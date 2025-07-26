@@ -1,6 +1,5 @@
 from rest_framework import serializers
-from .models import Student
-from .models import Classroom
+from attendance.models import Student, Classroom
 from rest_framework import serializers
 
 

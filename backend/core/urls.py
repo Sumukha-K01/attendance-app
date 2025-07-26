@@ -4,6 +4,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from attendance.views import ClassroomViewSet, StudentViewSet, AttendanceViewSet
 
+
 router = DefaultRouter()
 router.register('classrooms', ClassroomViewSet)
 router.register('students', StudentViewSet)

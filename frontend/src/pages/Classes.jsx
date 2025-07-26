@@ -1,13 +1,28 @@
-// src/pages/Classes.jsx
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import axios from "axios";
 
 const Classes = () => {
+  const [classes, setClasses] = useState([]);
   const navigate = useNavigate();
-  const classes = Array.from({ length: 10 }, (_, i) => `Class ${i + 1}`);
+  const accessToken = localStorage.getItem("access_token");
 
-  const handleClick = (className) => {
-    navigate(`/attendance/${className}`);
+  useEffect(() => {
+    axios
+      .get("http://127.0.0.1:8000/api/classrooms/", {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      })
+      .then((res) => setClasses(res.data))
+      .catch((err) => {
+        console.error("Error loading classes", err);
+        alert("Failed to load classes: " + (err.response?.data?.detail || err.message));
+      });
+  }, [accessToken]);
+
+  const handleClick = (classId) => {
+    navigate(`/attendance/${classId}`);
   };
 
   return (
@@ -15,13 +30,13 @@ const Classes = () => {
       <h2 className="text-3xl font-bold mb-10">Select a Class</h2>
 
       <div className="flex flex-col gap-4 w-full max-w-xs">
-        {classes.map((className) => (
+        {classes.map((cls) => (
           <button
-            key={className}
-            onClick={() => handleClick(className)}
+            key={cls.id}
+            onClick={() => handleClick(cls.id)}
             className="bg-blue-600 text-white py-3 rounded-xl shadow-md hover:bg-blue-700 hover:scale-105 transition-transform duration-300"
           >
-            {className}
+            {cls.name} (ID: {cls.id})
           </button>
         ))}
       </div>

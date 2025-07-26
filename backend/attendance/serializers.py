@@ -8,6 +8,8 @@ class ClassroomSerializer(serializers.ModelSerializer):
         fields = ['id', 'name']
 
 class StudentSerializer(serializers.ModelSerializer):
+    classroom = serializers.PrimaryKeyRelatedField(queryset=Classroom.objects.all())
+
     class Meta:
         model = Student
         fields = '__all__'
