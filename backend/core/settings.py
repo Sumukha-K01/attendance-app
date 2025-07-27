@@ -10,6 +10,7 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.2/ref/settings/
 """
 
+from datetime import timedelta
 from pathlib import Path
 import dj_database_url
 import os
@@ -28,7 +29,6 @@ SECRET_KEY = 'django-insecure-p8!h0l#_9eajh@25j7g50xd18emo3ch((8nw@)txlbbjz7a$mp
 DEBUG = True
 
 ALLOWED_HOSTS = []
-
 
 # Application definition
 
@@ -51,6 +51,7 @@ MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',  
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -60,9 +61,10 @@ MIDDLEWARE = [
 
 ROOT_URLCONF = 'core.urls'
 CORS_ALLOW_ALL_ORIGINS = True  # For development only
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-]
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:3000",
+#     "https://navodaya.onrender.com",
+# ]
 
 TEMPLATES = [
     {
@@ -133,6 +135,8 @@ USE_TZ = True
 
 STATIC_URL = 'static/'
 
+STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -147,6 +151,20 @@ REST_FRAMEWORK = {
     )
 }
 
-CORS_ALLOWED_ORIGINS = [
-    "http://localhost:3000",
-]
+CORS_ALLOW_ALL_ORIGINS = True  # For development only
+# CORS_ALLOWED_ORIGINS = [
+#     "http://localhost:3000",
+#     "https://navodaya.onrender.com",
+#     "http://navodaya-management.onrender.com",
+#     "https://navodaya-management.onrender.com",
+# ]
+
+# Add JWT settings
+SIMPLE_JWT = {
+    'ACCESS_TOKEN_LIFETIME': timedelta(days=1),
+    'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
+    'ROTATE_REFRESH_TOKENS': False,
+}
+
+STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+DEBUG = True  # Set to False in production
