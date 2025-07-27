@@ -12,7 +12,7 @@ const AddStudent = () => {
   useEffect(() => {
     const fetchClasses = async () => {
       try {
-        const response = await axios.get("${base_url}/classrooms/", {
+        const response = await axios.get(`${base_url}/classrooms/`, {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
         setClassrooms(response.data);
