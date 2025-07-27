@@ -2,7 +2,7 @@
 import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import axios from "axios";
-
+import { base_url } from "../App";
 const Attendance = () => {
   const { classId } = useParams();
   const [students, setStudents] = useState([]);
@@ -17,7 +17,7 @@ const Attendance = () => {
     if (!classId) return;
     setLoading(true);
     axios
-      .get(`http://127.0.0.1:8000/api/classrooms/${classId}/students/`, {
+      .get(`${base_url}/classrooms/${classId}/students/`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
@@ -52,7 +52,7 @@ const Attendance = () => {
     try {
       const today = new Date().toISOString().slice(0, 10);
       await axios.post(
-        "http://127.0.0.1:8000/api/attendance/",
+        `${base_url}/attendance/`,
         {
           student: studentId,
           date: today,

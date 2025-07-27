@@ -1,7 +1,7 @@
 // src/pages/ManageClasses.jsx
 import React, { useState, useEffect } from "react";
 import axios from "axios";
-
+import { base_url } from "../App";
 const ManageClasses = () => {
   const [className, setClassName] = useState("");
   const [classes, setClasses] = useState([]);
@@ -9,7 +9,7 @@ const ManageClasses = () => {
 
   const fetchClasses = async () => {
     try {
-      const response = await axios.get("http://127.0.0.1:8000/api/classrooms/", {
+      const response = await axios.get(`${base_url}/classrooms/`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
@@ -26,7 +26,7 @@ const ManageClasses = () => {
 
     try {
       await axios.post(
-        "http://127.0.0.1:8000/api/classrooms/",
+        `${base_url}/classrooms/`,
         { name: className },
         {
           headers: {
@@ -44,7 +44,7 @@ const ManageClasses = () => {
 
   const handleDeleteClass = async (id) => {
     try {
-      await axios.delete(`http://127.0.0.1:8000/api/classrooms/${id}/`, {
+      await axios.delete(`${base_url}/classrooms/${id}/`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },

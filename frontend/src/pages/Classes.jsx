@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import axios from "axios";
-
+import { base_url } from "../App";
 const Classes = () => {
   const [classes, setClasses] = useState([]);
   const navigate = useNavigate();
@@ -9,7 +9,7 @@ const Classes = () => {
 
   useEffect(() => {
     axios
-      .get("http://127.0.0.1:8000/api/classrooms/", {
+      .get(`${base_url}/classrooms/`, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },

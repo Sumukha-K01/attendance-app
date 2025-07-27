@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-
+import { base_url } from "../App";
 const ViewAttendance = () => {
   const [classes, setClasses] = useState([]);
   const [selectedClass, setSelectedClass] = useState("");
@@ -13,7 +13,7 @@ const ViewAttendance = () => {
   useEffect(() => {
     // Fetch all classes
     axios
-      .get("http://127.0.0.1:8000/api/classrooms/", {
+      .get(`${base_url}/classrooms/`, {
         headers: { Authorization: `Bearer ${accessToken}` },
       })
       .then((res) => setClasses(res.data))
@@ -26,7 +26,7 @@ const ViewAttendance = () => {
     setError(null);
     try {
       const res = await axios.get(
-        `http://127.0.0.1:8000/api/attendance/by_class_date/?class_id=${selectedClass}&date=${date}`,
+        `${base_url}/attendance/by_class_date/?class_id=${selectedClass}&date=${date}`,
         { headers: { Authorization: `Bearer ${accessToken}` } }
       );
       setAttendance(res.data);

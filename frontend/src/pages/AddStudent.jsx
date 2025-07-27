@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-
+import { base_url } from "../App";
 const AddStudent = () => {
   const [name, setName] = useState("");
   const [rollNumber, setRollNumber] = useState("");
@@ -12,7 +12,7 @@ const AddStudent = () => {
   useEffect(() => {
     const fetchClasses = async () => {
       try {
-        const response = await axios.get("http://127.0.0.1:8000/api/classrooms/", {
+        const response = await axios.get("${base_url}/classrooms/", {
           headers: { Authorization: `Bearer ${accessToken}` },
         });
         setClassrooms(response.data);
@@ -27,7 +27,7 @@ const AddStudent = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post("http://127.0.0.1:8000/api/students/", {
+      await axios.post(`${base_url}/students/`, {
         name,
         roll_number: parseInt(rollNumber),
         classroom: parseInt(selectedClass),

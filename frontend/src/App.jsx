@@ -26,4 +26,5 @@ function App() {
   );
 }
 
+export const base_url = "https://attendance-app-1-ffls.onrender.com/api";
 export default App;
