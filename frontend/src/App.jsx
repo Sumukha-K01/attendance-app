@@ -20,11 +20,12 @@ function App() {
         <Route path="/add-student" element={<AddStudent />} />
         <Route path="/manage-classes" element={<ManageClasses />} />
         <Route path="/class-attendance" element={<Classes />} />
+        <Route path="/house-attendance" element={<Houses />} />
         <Route path="/view-attendance" element={<ViewAttendance />} />
       </Routes>
     </BrowserRouter>
   );
 }
 
-export const base_url = "https://attendance-app-1-ffls.onrender.com/api";
+export const base_url = "http://127.0.0.1:8000/api";
 export default App;

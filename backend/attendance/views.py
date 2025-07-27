@@ -1,9 +1,18 @@
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Classroom, Student, Attendance
-from .serializers import ClassroomSerializer, StudentSerializer, AttendanceSerializer
+from .models import Classroom, Student, Attendance, Houses, AttendanceTypes
+from .serializers import ClassroomSerializer, StudentSerializer, AttendanceSerializer, HouseSerializer
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.views import APIView
+from rest_framework.response import Response
+from rest_framework import status
+from django.db.models import Q
+from .models import Attendance, Student
+from .serializers import AttendanceSerializer
+from datetime import datetime
+from rest_framework.parsers import JSONParser
+
 
 class ClassroomViewSet(viewsets.ModelViewSet):
     queryset = Classroom.objects.all()
@@ -39,3 +48,140 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         attendance = Attendance.objects.filter(student__in=students, date=date)
         serializer = AttendanceSerializer(attendance, many=True)
         return Response(serializer.data)
+
+
+class HouseViewSet(viewsets.ModelViewSet):
+    queryset = Houses.objects.all()
+    print("HouseViewSet queryset:", queryset)
+    serializer_class = HouseSerializer
+
+
+
+
+
+class AttendanceAPIView(APIView):
+    """
+    GET: Fetch attendance for a classroom, date, and attendance type (att_type).
+    POST: Create or update attendance records for multiple students for a given date and att_type.
+    """
+    parser_classes = [JSONParser]
+    permission_classes = [IsAuthenticated]
+
+    # Map att_type query param values to model field names
+    ATT_TYPE_FIELD_MAP = {
+        'morning': 'morning_attendance',
+        'evening_att': 'evening_class_attendance',
+        'morning_pt': 'morning_pt_attendance',
+        'games': 'games_attendance',
+        'night_dorm': 'night_dorm_attendance',
+    }
+
+    def get(self, request, *args, **kwargs):
+        classroom_id = request.query_params.get('classroom')
+        att_type = request.query_params.get('att_type', 'morning')
+        date_str = request.query_params.get('date')
+        house_id = request.query_params.get('house')
+        print("Received parameters:", classroom_id, att_type, date_str)
+        # Validate parameters
+        if not (classroom_id or house_id )or not date_str:
+            return Response({"detail": "classroom and date query parameters are required."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        
+        field_name = self.ATT_TYPE_FIELD_MAP.get(att_type)
+        if not field_name:
+            return Response({"detail": f"Invalid att_type: {att_type}"},
+                            status=status.HTTP_400_BAD_REQUEST)
+        
+        try:
+            query_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+        except ValueError:
+            return Response({"detail": "Invalid date format. Use YYYY-MM-DD."},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        # Get students of this classroom for mapping convenience
+        if house_id:
+            students = Student.objects.filter(house_id=house_id)
+        elif classroom_id:
+            students = Student.objects.filter(classroom_id=classroom_id)
+
+        # Fetch attendance for those students and date
+        attendance_qs = Attendance.objects.filter(student__in=students, date=query_date)
+
+        # Build response list with student id and the attendance status for the requested att_type field
+        response_data = []
+
+        # Build a map student_id -> attendance object for quicker lookup
+        att_map = {att.student_id: att for att in attendance_qs}
+
+        for student in students:
+            att_obj = att_map.get(student.id)
+            status_value = getattr(att_obj, field_name) if att_obj else None
+            # If no attendance record found, send null or you can default to 'present' if you want in frontend
+            response_data.append({
+                'student': student.id,
+                'student_name': student.name,
+                'status': status_value,
+            })
+
+        return Response(response_data, status=status.HTTP_200_OK)
+
+    def post(self, request, *args, **kwargs):
+        data = request.data
+        if not isinstance(data, list):
+            return Response({"detail": "Expected a list of attendance records."},
+                            status=status.HTTP_400_BAD_REQUEST)
+        
+        errors = []
+        successes = []
+        for index, record in enumerate(data):
+            student_id = record.get('student')
+            date_str = record.get('date')
+            status_value = record.get('status')
+            att_type = record.get('att_type')
+
+            if not all([student_id, date_str, status_value]):
+                errors.append({"index": index, "detail": "student, date, and status are required"})
+                continue
+            
+            field_name = self.ATT_TYPE_FIELD_MAP.get(att_type)
+            if not field_name:
+                errors.append({"index": index, "detail": f"Invalid att_type: {att_type}"})
+                continue
+            
+            # if status_value not in dict(AttendanceTypes).keys():
+            #     errors.append({"index": index, "detail": f"Invalid status value: {status_value}"})
+            #     continue
+
+            try:
+                att_date = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                errors.append({"index": index, "detail": "Invalid date format. Use YYYY-MM-DD."})
+                continue
+
+            try:
+                student = Student.objects.get(pk=student_id)
+            except Student.DoesNotExist:
+                errors.append({"index": index, "detail": f"Student id {student_id} not found"})
+                continue
+
+            attendance_obj, created = Attendance.objects.get_or_create(
+                student=student,
+                date=att_date,
+                defaults={
+                    field_name: status_value,
+                    'morning_attendance': 'null',
+                    'evening_class_attendance': 'null',
+                    'morning_pt_attendance': 'null',
+                    'games_attendance': 'null',
+                    'night_dorm_attendance': 'null',
+                })
+
+            setattr(attendance_obj, field_name, status_value)
+            try:
+                attendance_obj.save()
+                successes.append({"index": index, "detail": f"Attendance saved for student {student_id}"})
+            except Exception as e:
+                errors.append({"index": index, "detail": f"DB error: {str(e)}"})
+        
+        response_status = status.HTTP_200_OK if not errors else status.HTTP_207_MULTI_STATUS
+        return Response({"successes": successes, "errors": errors}, status=response_status)

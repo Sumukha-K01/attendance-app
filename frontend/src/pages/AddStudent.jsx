@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import { base_url } from "../App";
+
 const AddStudent = () => {
   const [name, setName] = useState("");
   const [rollNumber, setRollNumber] = useState("");
   const [classrooms, setClassrooms] = useState([]);
+  const [houses, setHouses] = useState([]);
   const [selectedClass, setSelectedClass] = useState("");
+  const [selectedHouse, setSelectedHouse] = useState("");
 
   const accessToken = localStorage.getItem("access_token");
 
@@ -21,7 +24,19 @@ const AddStudent = () => {
       }
     };
 
+    const fetchHouses = async () => {
+      try {
+        const response = await axios.get(`${base_url}/houses/`, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+        });
+        setHouses(response.data);
+      } catch (error) {
+        console.error("Failed to fetch houses", error);
+      }
+    };
+
     fetchClasses();
+    fetchHouses();
   }, [accessToken]);
 
   const handleSubmit = async (e) => {
@@ -31,6 +46,7 @@ const AddStudent = () => {
         name,
         roll_number: parseInt(rollNumber),
         classroom: parseInt(selectedClass),
+        house: parseInt(selectedHouse),
       }, {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
@@ -39,6 +55,7 @@ const AddStudent = () => {
       setName("");
       setRollNumber("");
       setSelectedClass("");
+      setSelectedHouse("");
     } catch (error) {
       alert("Failed to add student.");
       console.error(error);
@@ -75,6 +92,19 @@ const AddStudent = () => {
           {classrooms.map((cls) => (
             <option key={cls.id} value={cls.id}>
               {cls.name}
+            </option>
+          ))}
+        </select>
+        <select
+          value={selectedHouse}
+          onChange={(e) => setSelectedHouse(e.target.value)}
+          className="w-full border p-2 mb-3 rounded"
+          required
+        >
+          <option value="">Select House</option>
+          {houses.map((house) => (
+            <option key={house.id} value={house.id}>
+              {house.name}
             </option>
           ))}
         </select>
