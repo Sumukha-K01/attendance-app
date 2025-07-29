@@ -1,5 +1,5 @@
 from django.db import models
-from accounts.models import User
+from accounts.models import User, Branch
 
 
 class HouseTypes(models.TextChoices):
@@ -28,6 +28,7 @@ class Student(models.Model):
     roll_number = models.IntegerField()
     classroom = models.ForeignKey(Classroom, on_delete=models.CASCADE)
     house = models.ForeignKey(Houses, on_delete=models.SET_NULL, null=True, blank=True)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, null=True, blank=True)
     def __str__(self):
         return f"{self.name} ({self.roll_number})"
 

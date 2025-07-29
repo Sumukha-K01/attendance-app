@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Classroom, Student, Attendance, Houses
+from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
 
 class ClassroomSerializer(serializers.ModelSerializer):
@@ -34,3 +35,22 @@ class AttendanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendance
         fields = ['student', 'date', 'morning_attendance', 'evening_class_attendance', 'morning_pt_attendance', 'games_attendance', 'night_dorm_attendance']
+
+# serializers.py
+
+class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
+    @classmethod
+    def get_token(cls, user):
+        token = super().get_token(user)
+        # Add custom claims
+        token['admin_user_id'] = user.id
+        return token
+
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        # Include user information in the response as well
+        data.update({
+            'username': self.user.username,
+            'email': self.user.email
+        })
+        return data

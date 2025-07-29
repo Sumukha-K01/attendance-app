@@ -81,6 +81,8 @@ class AttendanceAPIView(APIView):
         att_type = request.query_params.get('att_type', 'morning')
         date_str = request.query_params.get('date')
         house_id = request.query_params.get('house')
+        branch_id = request.user.branch_id
+        print("Branch ID from user context:", branch_id)
         print("Received parameters:", classroom_id, att_type, date_str)
         # Validate parameters
         if not (classroom_id or house_id )or not date_str:
@@ -100,9 +102,9 @@ class AttendanceAPIView(APIView):
 
         # Get students of this classroom for mapping convenience
         if house_id:
-            students = Student.objects.filter(house_id=house_id)
+            students = Student.objects.filter(house_id=house_id,branch_id=branch_id)
         elif classroom_id:
-            students = Student.objects.filter(classroom_id=classroom_id)
+            students = Student.objects.filter(classroom_id=classroom_id, branch_id=branch_id)
 
         # Fetch attendance for those students and date
         attendance_qs = Attendance.objects.filter(student__in=students, date=query_date)
