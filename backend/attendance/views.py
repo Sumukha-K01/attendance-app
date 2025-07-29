@@ -54,8 +54,14 @@ class HouseViewSet(viewsets.ModelViewSet):
     queryset = Houses.objects.all()
     print("HouseViewSet queryset:", queryset)
     serializer_class = HouseSerializer
+    lookup_field = 'id'
 
-
+    @action(detail=True, methods=['get'], url_path='students')
+    def students(self, request, id=None):
+        house = self.get_object()
+        students = Student.objects.filter(house=house)
+        serializer = StudentSerializer(students, many=True)
+        return Response(serializer.data)
 
 
 

@@ -7,6 +7,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         token = super().get_token(user)
         # Add custom claims
         token['branch_id'] = user.branch_id
+        token['role'] = user.role
         return token
 
     def validate(self, attrs):
