@@ -12,11 +12,12 @@ class UserContextMiddleware(MiddlewareMixin):
                 payload = access_token.payload
                 user_id = payload.get('user_id')
                 branch_id = payload.get('branch_id')
-
+                role = payload.get('role')
                 # Set the user context in the request
                 request.user = {
                     'id': user_id,
                     'branch_id': branch_id,
+                    'role': role    
                 }
             except Exception as e:
                 # Handle invalid token or missing claims

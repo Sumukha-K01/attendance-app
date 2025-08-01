@@ -12,6 +12,8 @@ from .models import Attendance, Student
 from .serializers import AttendanceSerializer
 from datetime import datetime
 from rest_framework.parsers import JSONParser
+from django.db.models import OuterRef, Subquery
+from accounts.permisions import IsAdminUser
 
 
 class ClassroomViewSet(viewsets.ModelViewSet):
@@ -67,7 +69,7 @@ class HouseViewSet(viewsets.ModelViewSet):
 
 class AttendanceAPIView(APIView):
     """
-    GET: Fetch attendance for a classroom, date, and attendance type (att_type).
+    GET: Before marking, fetch attendance for a classroom/house, date, and attendance type (att_type).
     POST: Create or update attendance records for multiple students for a given date and att_type.
     """
     parser_classes = [JSONParser]
@@ -87,7 +89,8 @@ class AttendanceAPIView(APIView):
         att_type = request.query_params.get('att_type', 'morning')
         date_str = request.query_params.get('date')
         house_id = request.query_params.get('house')
-        branch_id = request.user.branch_id
+        # branch_id = request.user.branch_id
+        branch_id = 1
         print("Branch ID from user context:", branch_id)
         print("Received parameters:", classroom_id, att_type, date_str)
         # Validate parameters
@@ -177,11 +180,6 @@ class AttendanceAPIView(APIView):
                 date=att_date,
                 defaults={
                     field_name: status_value,
-                    'morning_attendance': 'null',
-                    'evening_class_attendance': 'null',
-                    'morning_pt_attendance': 'null',
-                    'games_attendance': 'null',
-                    'night_dorm_attendance': 'null',
                 })
 
             setattr(attendance_obj, field_name, status_value)
@@ -193,3 +191,137 @@ class AttendanceAPIView(APIView):
         
         response_status = status.HTTP_200_OK if not errors else status.HTTP_207_MULTI_STATUS
         return Response({"successes": successes, "errors": errors}, status=response_status)
+    
+
+
+class DashboardAPIView(APIView):
+    """
+    GET: Fetch dashboard data for a branch.
+    """
+    permission_classes = [IsAuthenticated, IsAdminUser]
+
+    def get(self, request, *args, **kwargs):
+        branch_id = request.user.branch_id
+        date = request.query_params.get('date')
+        
+        
+        students = Student.objects.filter(branch_id=branch_id)
+        total_students = students.count()   
+        # Fetch attendance for those students and date
+        attendance_qs = Attendance.objects.filter(student__in=students, date=date)
+
+        attendance_fields = [
+            'morning_attendance',
+            'evening_class_attendance',
+            'morning_pt_attendance',
+            'games_attendance',
+            'night_dorm_attendance'
+        ]
+
+        attendance_types = {
+            'present': AttendanceTypes.PRESENT,
+            'absent': AttendanceTypes.ABSENT,
+            'leave': AttendanceTypes.LEAVE,
+            'on_duty': AttendanceTypes.ON_DUTY,
+            'leave_sw': AttendanceTypes.LEAVE_SW,
+            'not_marked': AttendanceTypes.NOT_MARKED
+        }
+
+        
+        att_dict = {}
+
+
+        for field in attendance_fields:
+            # Initialize counts for each attendance type
+            attendance_counts = {}
+            for label, att_type in attendance_types.items():
+                key = f"{field}_{label}"
+                attendance_counts[key] = attendance_qs.filter(**{field: label}).count()
+            att_dict[field] = attendance_counts
+        # Prepare the response data
+        response_data = {
+            'total_students': total_students,
+            'attendance_counts': att_dict,
+            'date': date,
+            'branch_id': branch_id
+        }
+        return Response(response_data, status=status.HTTP_200_OK)
+        
+class AllStudentAttendanceAPIView(APIView):
+    """
+    GET: Fetch attendance for all students with filtering, searching, and sorting.
+    """
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    def get(self, request, *args, **kwargs):
+        date = request.query_params.get('date')
+        branch_id = request.user.branch_id
+
+        if not date:
+            return Response({"detail": "date query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        search_query = request.query_params.get('search', '').strip()
+        sort_field = request.query_params.get('sort_field', 'student_name')
+        sort_order = request.query_params.get('sort_order', 'asc')
+
+        # Build base queryset with JOIN to attendance
+        students = Student.objects.filter(branch_id=branch_id).annotate(
+            morning_attendance=Subquery(
+                Attendance.objects.filter(student=OuterRef('pk'), date=date).values('morning_attendance')[:1]
+            ),
+            evening_class_attendance=Subquery(
+                Attendance.objects.filter(student=OuterRef('pk'), date=date).values('evening_class_attendance')[:1]
+            ),
+            morning_pt_attendance=Subquery(
+                Attendance.objects.filter(student=OuterRef('pk'), date=date).values('morning_pt_attendance')[:1]
+            ),
+            games_attendance=Subquery(
+                Attendance.objects.filter(student=OuterRef('pk'), date=date).values('games_attendance')[:1]
+            ),
+            night_dorm_attendance=Subquery(
+                Attendance.objects.filter(student=OuterRef('pk'), date=date).values('night_dorm_attendance')[:1]
+            ),
+        )
+
+        # Search by name or ID
+        if search_query:
+            students = students.filter(Q(name__icontains=search_query) | Q(id__icontains=search_query))
+
+        # Allowed fields for sorting (student + attendance)
+        valid_sort_fields = {
+            'student_name': 'name',
+            'student_id': 'id',
+            'morning_attendance': 'morning_attendance',
+            'evening_class_attendance': 'evening_class_attendance',
+            'morning_pt_attendance': 'morning_pt_attendance',
+            'games_attendance': 'games_attendance',
+            'night_dorm_attendance': 'night_dorm_attendance'
+        }
+
+        # Apply sorting
+        if sort_field in valid_sort_fields:
+            ordering = valid_sort_fields[sort_field]
+            if sort_order == 'desc':
+                ordering = f'-{ordering}'
+            students = students.order_by(ordering)
+
+        # Format response
+        response_data = []
+        for student in students:
+            response_data.append({
+                'student_id': student.id,
+                'student_name': student.name,
+                'attendance': {
+                    'morning_attendance': student.morning_attendance,
+                    'evening_class_attendance': student.evening_class_attendance,
+                    'morning_pt_attendance': student.morning_pt_attendance,
+                    'games_attendance': student.games_attendance,
+                    'night_dorm_attendance': student.night_dorm_attendance
+                }
+            })
+        additional_data = {
+            'total_students': students.count(),
+            'date': date,
+            'branch_id': branch_id
+        }
+        response_data.append(additional_data)
+        return Response(response_data, status=status.HTTP_200_OK)
