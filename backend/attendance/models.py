@@ -47,7 +47,7 @@ class AttendanceTypes(models.TextChoices):
 
 
 class Attendance(models.Model):
-    student = models.ForeignKey(Student, on_delete=models.CASCADE)
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='student_attendance')
     date = models.DateField()
     morning_attendance = models.CharField(
         max_length=100,

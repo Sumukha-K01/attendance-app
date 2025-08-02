@@ -252,76 +252,146 @@ class AllStudentAttendanceAPIView(APIView):
     GET: Fetch attendance for all students with filtering, searching, and sorting.
     """
     permission_classes = [IsAuthenticated, IsAdminUser]
+    ATT_TYPE_FIELD_MAP = {
+        'morning': 'morning_attendance',
+        'evening_att': 'evening_class_attendance',
+        'morning_pt': 'morning_pt_attendance',
+        'games': 'games_attendance',
+        'night_dorm': 'night_dorm_attendance',
+    }
     def get(self, request, *args, **kwargs):
         date = request.query_params.get('date')
+        attendance_type = request.query_params.get('attendance_type', 'morning')
+        status_value = request.query_params.get('status_value', 'present')
         branch_id = request.user.branch_id
-
+        print("date: ",date)
         if not date:
             return Response({"detail": "date query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
 
+        field_name = self.ATT_TYPE_FIELD_MAP.get(attendance_type)
+
         search_query = request.query_params.get('search', '').strip()
-        sort_field = request.query_params.get('sort_field', 'student_name')
+        sort_field = request.query_params.get('sort_field', 'name')
         sort_order = request.query_params.get('sort_order', 'asc')
 
         # Build base queryset with JOIN to attendance
-        students = Student.objects.filter(branch_id=branch_id).annotate(
-            morning_attendance=Subquery(
-                Attendance.objects.filter(student=OuterRef('pk'), date=date).values('morning_attendance')[:1]
-            ),
-            evening_class_attendance=Subquery(
-                Attendance.objects.filter(student=OuterRef('pk'), date=date).values('evening_class_attendance')[:1]
-            ),
-            morning_pt_attendance=Subquery(
-                Attendance.objects.filter(student=OuterRef('pk'), date=date).values('morning_pt_attendance')[:1]
-            ),
-            games_attendance=Subquery(
-                Attendance.objects.filter(student=OuterRef('pk'), date=date).values('games_attendance')[:1]
-            ),
-            night_dorm_attendance=Subquery(
-                Attendance.objects.filter(student=OuterRef('pk'), date=date).values('night_dorm_attendance')[:1]
-            ),
-        )
-
-        # Search by name or ID
+        students = Student.objects.filter(branch_id=branch_id)
+        
+        attendance = Attendance.objects.filter(
+                Q(student__in=students) &
+                Q(date=date)&
+                Q(**{field_name: status_value})
+            ).values('student_id')
+        
+        students = students.filter(id__in=attendance)
         if search_query:
             students = students.filter(Q(name__icontains=search_query) | Q(id__icontains=search_query))
-
-        # Allowed fields for sorting (student + attendance)
-        valid_sort_fields = {
-            'student_name': 'name',
-            'student_id': 'id',
-            'morning_attendance': 'morning_attendance',
-            'evening_class_attendance': 'evening_class_attendance',
-            'morning_pt_attendance': 'morning_pt_attendance',
-            'games_attendance': 'games_attendance',
-            'night_dorm_attendance': 'night_dorm_attendance'
-        }
-
-        # Apply sorting
+        valid_sort_fields = ['name','id']
         if sort_field in valid_sort_fields:
-            ordering = valid_sort_fields[sort_field]
+            ordering = sort_field
             if sort_order == 'desc':
                 ordering = f'-{ordering}'
             students = students.order_by(ordering)
 
-        # Format response
-        response_data = []
-        for student in students:
-            response_data.append({
-                'student_id': student.id,
-                'student_name': student.name,
-                'attendance': {
-                    'morning_attendance': student.morning_attendance,
-                    'evening_class_attendance': student.evening_class_attendance,
-                    'morning_pt_attendance': student.morning_pt_attendance,
-                    'games_attendance': student.games_attendance,
-                    'night_dorm_attendance': student.night_dorm_attendance
-                }
-            })
-        additional_data = {
+        result = students.values('id', 'name', 'classroom__name', 'house__name')
+        final_response = {
             'total_students': students.count(),
             'date': date,
             'branch_id': branch_id
         }
-        response_data.append(additional_data)
-        return Response(response_data, status=status.HTTP_200_OK)
+        result = list(result)
+        final_response['students'] = result
+        return Response(final_response, status=status.HTTP_200_OK)
+        
+        
+class StudentAPIView(APIView):
+    """
+    GET: Fetch all students with optional filtering, searching, and sorting.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        search_query = request.query_params.get('search', '').strip()
+        sort_field = request.query_params.get('sort_field', 'name')
+        sort_order = request.query_params.get('sort_order', 'asc')
+        branch_id = request.user.branch_id
+        # branch_id = 1
+
+        students = Student.objects.filter(branch_id=branch_id)
+
+        if search_query:
+            students = students.filter(Q(name__icontains=search_query) | Q(id__icontains=search_query))
+
+        valid_sort_fields = ['name', 'id']
+        if sort_field in valid_sort_fields:
+            ordering = sort_field
+            if sort_order == 'desc':
+                ordering = f'-{ordering}'
+            students = students.order_by(ordering)
+
+        result = students.values('id', 'name', 'roll_number', 'classroom__name', 'house__name')
+        final_response = {
+            'total_students': students.count(),
+            'branch_id': branch_id,
+            'students': list(result)
+        }
+        return Response(final_response, status=status.HTTP_200_OK)
+    
+    def post(self, request, *args, **kwargs):
+        data = request.data
+        serializer = StudentSerializer(data=data)
+        if serializer.is_valid():
+            serializer.save(branch_id=request.user.branch_id)
+            # serializer.save(branch_id=1)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def patch(self, request, student_id, *args, **kwargs):
+        branch_id = request.user.branch_id
+        # branch_id = 1
+        try:
+            student = Student.objects.get(id=student_id, branch_id=branch_id)
+        except Student.DoesNotExist:
+            return Response({"detail": "Student not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        serializer = StudentSerializer(student, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    def delete(self, request, student_id, *args, **kwargs):
+        try:
+            student = Student.objects.get(id=student_id, branch_id=request.user.branch_id)
+            student.delete()
+            return Response({"detail": "Student deleted successfully."}, status=status.HTTP_204_NO_CONTENT)
+        except Student.DoesNotExist:
+            return Response({"detail": "Student not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+class BulkAddStudentsAPIView(APIView):
+    """
+    POST: Bulk add students to a classroom.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        data = request.data
+        branch_id = request.user.branch_id
+        classroom_id = data.get('classroom_id')
+        if not classroom_id:
+            return Response({"detail": "classroom_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+
+        students_data = data.get('students', [])
+        if not isinstance(students_data, list) or not students_data:
+            return Response({"detail": "students must be a non-empty list."}, status=status.HTTP_400_BAD_REQUEST)
+
+        for student in students_data:
+            student['classroom'] = classroom_id
+            student['branch'] = branch_id  # Assuming branch_id is 1 for simplicity
+
+        serializer = StudentSerializer(data=students_data, many=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
