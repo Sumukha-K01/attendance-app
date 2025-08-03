@@ -352,9 +352,10 @@ class StudentAPIView(APIView):
     
     def post(self, request, *args, **kwargs):
         data = request.data
+        branch_id = request.user.branch_id
         serializer = StudentAPISerializer(data=data)
         if serializer.is_valid():
-            serializer.save(branch_id=request.user.branch_id)
+            serializer.save(branch_id=branch_id)
             # serializer.save(branch_id=1)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
