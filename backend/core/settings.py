@@ -14,6 +14,7 @@ from datetime import timedelta
 from pathlib import Path
 import dj_database_url
 import os
+import logging
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -98,6 +99,35 @@ DATABASES = {
         'PORT': '5432',
     }
 }
+
+
+# Create a logger
+logger = logging.getLogger(__name__)
+
+# Set the log level
+logger.setLevel(logging.INFO)
+
+# Create a handler for logging to the console
+console_handler = logging.StreamHandler()
+console_handler.setLevel(logging.INFO)
+
+# Create a formatter for the console handler
+console_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+console_handler.setFormatter(console_formatter)
+
+# Add the console handler to the logger
+logger.addHandler(console_handler)
+
+# Create a handler for logging to a file
+file_handler = logging.FileHandler('app.log')
+file_handler.setLevel(logging.INFO)
+
+# Create a formatter for the file handler
+file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+file_handler.setFormatter(file_formatter)
+
+# Add the file handler to the logger
+logger.addHandler(file_handler)
 
 
 # Password validation

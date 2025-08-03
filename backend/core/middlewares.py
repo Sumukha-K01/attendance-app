@@ -1,5 +1,6 @@
 from rest_framework_simplejwt.tokens import AccessToken
 from django.utils.deprecation import MiddlewareMixin
+from core.settings import logger
 
 class UserContextMiddleware(MiddlewareMixin):
     def process_request(self, request):
@@ -19,6 +20,7 @@ class UserContextMiddleware(MiddlewareMixin):
                     'branch_id': branch_id,
                     'role': role    
                 }
+                logger.info("User context set: %s", request.user)
             except Exception as e:
                 # Handle invalid token or missing claims
                 pass

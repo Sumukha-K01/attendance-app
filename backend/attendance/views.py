@@ -14,8 +14,22 @@ from datetime import datetime
 from rest_framework.parsers import JSONParser
 from django.db.models import OuterRef, Subquery
 from accounts.permisions import IsAdminUser
+# import logging
+from core.settings import logger
+# logger = logging.getLogger(__name__)
 
+# logger.setLevel(logging.INFO)
 
+# # Create a handler for logging to the console
+# console_handler = logging.StreamHandler()
+# console_handler.setLevel(logging.INFO)
+
+# # Create a formatter for the console handler
+# console_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+# console_handler.setFormatter(console_formatter)
+
+# # Add the console handler to the logger
+# logger.addHandler(console_handler)
 class ClassroomViewSet(viewsets.ModelViewSet):
     queryset = Classroom.objects.all()
     serializer_class = ClassroomSerializer
@@ -353,9 +367,12 @@ class StudentAPIView(APIView):
     def post(self, request, *args, **kwargs):
         data = request.data
         branch_id = request.user.branch_id
+        data['branch'] = branch_id  # Add branch_id to the data
+        logger.info("Student recieved %s",data)
+        # print("Data received for student creation:", data)
         serializer = StudentAPISerializer(data=data)
         if serializer.is_valid():
-            serializer.save(branch_id=branch_id)
+            serializer.save()
             # serializer.save(branch_id=1)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

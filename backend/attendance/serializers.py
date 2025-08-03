@@ -1,7 +1,7 @@
 from rest_framework import serializers
 from .models import Classroom, Student, Attendance, Houses
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
-
+from accounts.models import Branch
 
 class ClassroomSerializer(serializers.ModelSerializer):
     class Meta:
@@ -70,6 +70,7 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
 class StudentAPISerializer(serializers.ModelSerializer):
     classroom = serializers.PrimaryKeyRelatedField(queryset=Classroom.objects.all())
     house = serializers.PrimaryKeyRelatedField(queryset=Houses.objects.all())
+    branch = serializers.PrimaryKeyRelatedField(queryset=Branch.objects.all())
     class Meta:
         model = Student
         fields = '__all__'
