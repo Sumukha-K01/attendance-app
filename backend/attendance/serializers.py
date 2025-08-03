@@ -10,10 +10,21 @@ class ClassroomSerializer(serializers.ModelSerializer):
 
 class StudentSerializer(serializers.ModelSerializer):
     classroom = serializers.PrimaryKeyRelatedField(queryset=Classroom.objects.all())
-
+    house = serializers.PrimaryKeyRelatedField(queryset=Houses.objects.all())
     class Meta:
         model = Student
         fields = '__all__'
+
+    def save(self, **kwargs):
+        # Ensure that the roll number is unique within the classroom
+        print(self.validated_data)
+        if 'roll_number' in self.validated_data:
+            print("Validating roll number uniqueness...")
+            roll_number = self.validated_data['roll_number']
+            classroom = self.validated_data.get('classroom')
+            if Student.objects.filter(roll_number=roll_number, classroom=classroom).exists():
+                raise serializers.ValidationError("Roll number must be unique within the classroom.")
+        return super().save(**kwargs)
 
 # class AttendanceSerializer(serializers.ModelSerializer):
 #     student_name = serializers.CharField(source='student.name', read_only=True)

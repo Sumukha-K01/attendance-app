@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import AttendanceAPIView, DashboardAPIView, AllStudentAttendanceAPIView, StudentAPIView
+from .views import AttendanceAPIView, DashboardAPIView, AllStudentAttendanceAPIView, StudentAPIView, BulkAddStudentsAPIView
 urlpatterns = [
     # Other paths ...
     path('', AttendanceAPIView.as_view(), name='attendance-api'),
@@ -7,4 +7,5 @@ urlpatterns = [
     path('get-all-attendance/', AllStudentAttendanceAPIView.as_view(), name='all-student-attendance'),
     path('students/', StudentAPIView.as_view(), name='student-attendance'),
     path('students/<int:student_id>/', StudentAPIView.as_view(), name='student-attendance-detail'),
+    path('students/bulk-add/', BulkAddStudentsAPIView.as_view(), name='bulk-add-students'),
 ]

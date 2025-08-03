@@ -201,7 +201,8 @@ class DashboardAPIView(APIView):
     permission_classes = [IsAuthenticated, IsAdminUser]
 
     def get(self, request, *args, **kwargs):
-        branch_id = request.user.branch_id
+        # branch_id = request.user.branch_id
+        branch_id = 1
         date = request.query_params.get('date')
         
         
@@ -373,25 +374,73 @@ class BulkAddStudentsAPIView(APIView):
     """
     POST: Bulk add students to a classroom.
     """
-    permission_classes = [IsAuthenticated]
+    # permission_classes = [IsAuthenticated]
 
-    def post(self, request, *args, **kwargs):
-        data = request.data
+    # def post(self, request, *args, **kwargs):
+    #     data = request.data
+    #     branch_id = 1
+        
+    #     students_data = data.get('students', [])
+    #     if not isinstance(students_data, list) or not students_data:
+    #         return Response({"detail": "students must be a non-empty list."}, status=status.HTTP_400_BAD_REQUEST)
+
+    #     for student in students_data:
+    #         student['branch'] = branch_id  # Assuming branch_id is 1 for simplicity
+    #     print("Bulk adding students:", students_data)
+    #     serializer = StudentSerializer(data=students_data, many=True)
+        # try:
+        #     serializer.is_valid(raise_exception=True)
+        #     serializer.save()
+        # except Exception as e:
+        #     return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        # # if serializer.is_valid():
+        # #     serializer.save()
+        # return Response(serializer.data, status=status.HTTP_201_CREATED)
+        # # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+    def post(self, request):
+        students_data = request.data.get("students", [])
         branch_id = request.user.branch_id
-        classroom_id = data.get('classroom_id')
-        if not classroom_id:
-            return Response({"detail": "classroom_id is required."}, status=status.HTTP_400_BAD_REQUEST)
+        # branch_id = 1
+        if not students_data:
+            return Response({"detail": "No students data provided."}, status=status.HTTP_400_BAD_REQUEST)
 
-        students_data = data.get('students', [])
-        if not isinstance(students_data, list) or not students_data:
-            return Response({"detail": "students must be a non-empty list."}, status=status.HTTP_400_BAD_REQUEST)
+        # Collect all roll_number-classroom pairs
+        unique_keys = set((stu['roll_number'], stu['classroom_id']) for stu in students_data)
+        existing_students = Student.objects.filter(
+            roll_number__in=[r for r, _ in unique_keys],
+            classroom_id__in=[c for _, c in unique_keys],
+            branch_id=branch_id
+        )
 
-        for student in students_data:
-            student['classroom'] = classroom_id
-            student['branch'] = branch_id  # Assuming branch_id is 1 for simplicity
+        # Map (roll_number, classroom) -> Student instance
+        existing_map = {
+            (stu.roll_number, stu.classroom_id): stu for stu in existing_students
+        }
 
-        serializer = StudentSerializer(data=students_data, many=True)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        to_create = []
+        to_update = []
+
+        for stu_data in students_data:
+            # Add branch_id to each student data
+            stu_data['branch_id'] = branch_id
+            key = (stu_data['roll_number'], stu_data['classroom_id'])
+            if key in existing_map:
+                student = existing_map[key]
+                for attr, value in stu_data.items():
+                    setattr(student, attr, value)
+                to_update.append(student)
+            else:
+                to_create.append(Student(**stu_data))
+
+        # Perform bulk operations
+        if to_create:
+            Student.objects.bulk_create(to_create)
+        if to_update:
+            Student.objects.bulk_update(to_update, fields=['name', 'house'])
+
+        return Response({
+            "created": len(to_create),
+            "updated": len(to_update)
+        }, status=status.HTTP_200_OK)

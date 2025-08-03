@@ -35,7 +35,8 @@ class Student(models.Model):
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, null=True, blank=True)
     def __str__(self):
         return f"{self.name} ({self.roll_number})"
-
+    class Meta:
+        unique_together = ('roll_number', 'classroom', 'branch')  # Ensure unique roll number per classroom and branch
 
 class AttendanceTypes(models.TextChoices):
     PRESENT = 'PRESENT', 'present'
