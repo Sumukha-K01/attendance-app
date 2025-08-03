@@ -2,7 +2,7 @@ from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from .models import Classroom, Student, Attendance, Houses, AttendanceTypes
-from .serializers import ClassroomSerializer, StudentSerializer, AttendanceSerializer, HouseSerializer
+from .serializers import ClassroomSerializer, StudentSerializer,StudentAPISerializer, AttendanceSerializer, HouseSerializer
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -54,7 +54,6 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
 class HouseViewSet(viewsets.ModelViewSet):
     queryset = Houses.objects.all()
-    print("HouseViewSet queryset:", queryset)
     serializer_class = HouseSerializer
     lookup_field = 'id'
 
@@ -89,8 +88,8 @@ class AttendanceAPIView(APIView):
         att_type = request.query_params.get('att_type', 'morning')
         date_str = request.query_params.get('date')
         house_id = request.query_params.get('house')
-        # branch_id = request.user.branch_id
-        branch_id = 1
+        branch_id = request.user.branch_id
+        # branch_id = 1
         print("Branch ID from user context:", branch_id)
         print("Received parameters:", classroom_id, att_type, date_str)
         # Validate parameters
@@ -201,8 +200,8 @@ class DashboardAPIView(APIView):
     permission_classes = [IsAuthenticated, IsAdminUser]
 
     def get(self, request, *args, **kwargs):
-        # branch_id = request.user.branch_id
-        branch_id = 1
+        branch_id = request.user.branch_id
+        # branch_id = 1
         date = request.query_params.get('date')
         
         
@@ -353,7 +352,7 @@ class StudentAPIView(APIView):
     
     def post(self, request, *args, **kwargs):
         data = request.data
-        serializer = StudentSerializer(data=data)
+        serializer = StudentAPISerializer(data=data)
         if serializer.is_valid():
             serializer.save(branch_id=request.user.branch_id)
             # serializer.save(branch_id=1)
@@ -368,7 +367,7 @@ class StudentAPIView(APIView):
         except Student.DoesNotExist:
             return Response({"detail": "Student not found."}, status=status.HTTP_404_NOT_FOUND)
 
-        serializer = StudentSerializer(student, data=request.data, partial=True)
+        serializer = StudentAPISerializer(student, data=request.data, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_200_OK)

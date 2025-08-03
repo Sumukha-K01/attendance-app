@@ -91,11 +91,11 @@ WSGI_APPLICATION = 'core.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'attendance_db_69d8',
-        'USER': 'attendance_db_69d8_user',
-        'PASSWORD': '5FT2JBRWE46tT4V8HqahLQJiKM5tSGXD',
-        'HOST': 'dpg-d21rkpnfte5s73801k60-a.singapore-postgres.render.com',
-        'PORT': '5432',  # default PostgreSQL port
+        'NAME': 'jnv_db',
+        'USER': 'neondb_owner',
+        'PASSWORD': 'npg_vtwfzPTosQ93',
+        'HOST': 'ep-fragrant-sky-a15e5igb-pooler.ap-southeast-1.aws.neon.tech',
+        'PORT': '5432',
     }
 }
 

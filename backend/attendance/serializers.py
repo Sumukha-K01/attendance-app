@@ -65,3 +65,11 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             'email': self.user.email
         })
         return data
+
+
+class StudentAPISerializer(serializers.ModelSerializer):
+    classroom = serializers.PrimaryKeyRelatedField(queryset=Classroom.objects.all())
+    house = serializers.PrimaryKeyRelatedField(queryset=Houses.objects.all())
+    class Meta:
+        model = Student
+        fields = '__all__'
