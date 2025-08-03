@@ -29,10 +29,10 @@ class Classroom(models.Model):
 
 class Student(models.Model):
     name = models.CharField(max_length=100)
-    roll_number = models.IntegerField()
-    classroom = models.ForeignKey(Classroom, on_delete=models.CASCADE)
-    house = models.ForeignKey(Houses, on_delete=models.SET_NULL, null=True, blank=True)
-    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, null=True, blank=True)
+    roll_number = models.IntegerField(db_index=True)
+    classroom = models.ForeignKey(Classroom, on_delete=models.CASCADE, db_index=True)
+    house = models.ForeignKey(Houses, on_delete=models.SET_NULL, null=True, blank=True, db_index=True)
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, null=True, blank=True, db_index=True)
     def __str__(self):
         return f"{self.name} ({self.roll_number})"
     class Meta:
@@ -48,8 +48,8 @@ class AttendanceTypes(models.TextChoices):
 
 
 class Attendance(models.Model):
-    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='student_attendance')
-    date = models.DateField()
+    student = models.ForeignKey(Student, on_delete=models.CASCADE, related_name='student_attendance', db_index=True)
+    date = models.DateField(db_index=True)
     morning_attendance = models.CharField(
         max_length=100,
         null=True,

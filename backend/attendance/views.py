@@ -210,7 +210,19 @@ class DashboardAPIView(APIView):
         total_students = students.count()   
         # Fetch attendance for those students and date
         attendance_qs = Attendance.objects.filter(student__in=students, date=date)
+        if students.count() != attendance_qs.count() and date > '2025-08-01'  :
 
+            attendance_missed = students.count() - attendance_qs.count()
+            # add attendance entry for missed students
+            # bulk create attendance entries for students who missed marking
+            print(f"Adding attendance for {attendance_missed} students who missed marking on {date
+            }")
+            # Create attendance entries for students who missed marking
+            Attendance.objects.bulk_create([
+                Attendance(student=student, date=date)
+                for student in students if not attendance_qs.filter(student=student, date=date).exists()
+            ])
+            
         attendance_fields = [
             'morning_attendance',
             'evening_class_attendance',
@@ -225,13 +237,14 @@ class DashboardAPIView(APIView):
             'leave': AttendanceTypes.LEAVE,
             'on_duty': AttendanceTypes.ON_DUTY,
             'leave_sw': AttendanceTypes.LEAVE_SW,
-            'not_marked': AttendanceTypes.NOT_MARKED
+            'NOT_MARKED': AttendanceTypes.NOT_MARKED,
         }
 
         
         att_dict = {}
 
-
+        not_marked_count = attendance_qs.filter(morning_attendance='NOT_MARKED').count()
+        print("Not Marked Count: ", not_marked_count)
         for field in attendance_fields:
             # Initialize counts for each attendance type
             attendance_counts = {}
