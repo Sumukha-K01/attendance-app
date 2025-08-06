@@ -337,7 +337,6 @@ class StudentAPIView(APIView):
     """
     GET: Fetch all students with optional filtering, searching, and sorting.
     """
-    # authentication_classes = []
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
