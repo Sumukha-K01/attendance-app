@@ -39,7 +39,8 @@ class ClassroomViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='students')
     def students(self, request, id=None):
         classroom = self.get_object()
-        students = Student.objects.filter(classroom=classroom)
+        branch_id = request.user.branch_id
+        students = Student.objects.filter(classroom=classroom, branch_id=branch_id)
         serializer = StudentSerializer(students, many=True)
         return Response(serializer.data)
 
@@ -74,7 +75,8 @@ class HouseViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='students')
     def students(self, request, id=None):
         house = self.get_object()
-        students = Student.objects.filter(house=house)
+        branch_id = request.user.branch_id
+        students = Student.objects.filter(house=house, branch_id=branch_id)
         serializer = StudentSerializer(students, many=True)
         return Response(serializer.data)
 
