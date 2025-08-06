@@ -335,6 +335,7 @@ class StudentAPIView(APIView):
     """
     GET: Fetch all students with optional filtering, searching, and sorting.
     """
+    authentication_classes = []
     permission_classes = [IsAuthenticated]
 
     def get(self, request, *args, **kwargs):
@@ -367,7 +368,9 @@ class StudentAPIView(APIView):
     def post(self, request, *args, **kwargs):
         data = request.data
         branch_id = request.user.branch_id
-        data['branch'] = branch_id  # Add branch_id to the data
+        logger.info("POST called by user: %s", request.user)
+        logger.info("Branch ID detected: %s", request.user.branch_id)
+        data['branch'] = branch_id if branch_id else 1
         logger.info("Student recieved %s",data)
         # print("Data received for student creation:", data)
         serializer = StudentAPISerializer(data=data)
