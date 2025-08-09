@@ -1,15 +1,8 @@
 from rest_framework import serializers
-from attendance.models import Student, Classroom
-from rest_framework import serializers
+from .models import Results
 
 
-class StudentSerializer(serializers.ModelSerializer):
+class ResultSerializer(serializers.ModelSerializer):
     class Meta:
-        model = Student
+        model = Results
         fields = '__all__'
-
-
-class ClassroomSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Classroom
-        fields = ['id', 'name']

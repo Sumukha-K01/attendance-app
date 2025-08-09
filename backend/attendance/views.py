@@ -16,20 +16,7 @@ from django.db.models import OuterRef, Subquery
 from accounts.permisions import IsAdminUser
 # import logging
 from core.settings import logger
-# logger = logging.getLogger(__name__)
 
-# logger.setLevel(logging.INFO)
-
-# # Create a handler for logging to the console
-# console_handler = logging.StreamHandler()
-# console_handler.setLevel(logging.INFO)
-
-# # Create a formatter for the console handler
-# console_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-# console_handler.setFormatter(console_formatter)
-
-# # Add the console handler to the logger
-# logger.addHandler(console_handler)
 class ClassroomViewSet(viewsets.ModelViewSet):
     queryset = Classroom.objects.all()
     serializer_class = ClassroomSerializer
@@ -408,30 +395,7 @@ class BulkAddStudentsAPIView(APIView):
     """
     POST: Bulk add students to a classroom.
     """
-    # permission_classes = [IsAuthenticated]
-
-    # def post(self, request, *args, **kwargs):
-    #     data = request.data
-    #     branch_id = 1
-        
-    #     students_data = data.get('students', [])
-    #     if not isinstance(students_data, list) or not students_data:
-    #         return Response({"detail": "students must be a non-empty list."}, status=status.HTTP_400_BAD_REQUEST)
-
-    #     for student in students_data:
-    #         student['branch'] = branch_id  # Assuming branch_id is 1 for simplicity
-    #     print("Bulk adding students:", students_data)
-    #     serializer = StudentSerializer(data=students_data, many=True)
-        # try:
-        #     serializer.is_valid(raise_exception=True)
-        #     serializer.save()
-        # except Exception as e:
-        #     return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
-        # # if serializer.is_valid():
-        # #     serializer.save()
-        # return Response(serializer.data, status=status.HTTP_201_CREATED)
-        # # return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
+    permission_classes = [IsAuthenticated]
 
     def post(self, request):
         students_data = request.data.get("students", [])
@@ -472,9 +436,15 @@ class BulkAddStudentsAPIView(APIView):
         if to_create:
             Student.objects.bulk_create(to_create)
         if to_update:
-            Student.objects.bulk_update(to_update, fields=['name', 'house'])
+            Student.objects.bulk_update(to_update, fields=['name', 'house', 'course', 'classroom'])
 
         return Response({
             "created": len(to_create),
             "updated": len(to_update)
         }, status=status.HTTP_200_OK)
+    
+    
+
+
+
+        

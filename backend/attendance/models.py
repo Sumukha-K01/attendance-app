@@ -33,6 +33,7 @@ class Student(models.Model):
     classroom = models.ForeignKey(Classroom, on_delete=models.CASCADE, db_index=True)
     house = models.ForeignKey(Houses, on_delete=models.SET_NULL, null=True, blank=True, db_index=True)
     branch = models.ForeignKey(Branch, on_delete=models.CASCADE, null=True, blank=True, db_index=True)
+    course = models.CharField(default='NA', max_length=100, null=True, blank=True)
     def __str__(self):
         return f"{self.name} ({self.roll_number})"
     class Meta:

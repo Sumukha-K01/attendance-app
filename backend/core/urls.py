@@ -9,12 +9,10 @@ from accounts.views import CustomTokenObtainPairView
 router = DefaultRouter()
 router.register('classrooms', ClassroomViewSet)
 router.register('students', StudentViewSet)
-# router.register('attendance', AttendanceAPIView, basename='attendance')
-router.register('houses', HouseViewSet)  # Registering HouseViewSet
+router.register('houses', HouseViewSet)  
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-
     # JWT login endpoints
     path('api/login/', CustomTokenObtainPairView.as_view(), name='token_obtain_pair'),
     # path('api/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
@@ -24,4 +22,6 @@ urlpatterns = [
 
     # health endpoint
     path('health/', lambda _: JsonResponse({'status': 'ok'})),
+    # Students app API
+    path('api/results/', include('students.urls')), 
 ]

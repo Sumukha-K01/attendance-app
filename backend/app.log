@@ -1,1 +1,5 @@
 2025-08-03 19:35:28,387 - core.settings - INFO - Student recieved {'name': 'trial-2', 'roll_number': 120, 'classroom': 1, 'house': 2, 'branch': 1}
+2025-08-08 17:50:28,689 - django.utils.autoreload - INFO - Watching for file changes with StatReloader
+2025-08-08 17:50:34,618 - django.utils.autoreload - INFO - C:\Users\Hi\Desktop\suk-be\attendance-app\backend\core\settings.py changed, reloading.
+2025-08-08 17:50:35,489 - django.utils.autoreload - INFO - Watching for file changes with StatReloader
+2025-08-08 17:50:44,495 - django.utils.autoreload - INFO - C:\Users\Hi\Desktop\suk-be\attendance-app\backend\core\settings.py changed, reloading.

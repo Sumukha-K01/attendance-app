@@ -29,6 +29,7 @@ SECRET_KEY = 'django-insecure-p8!h0l#_9eajh@25j7g50xd18emo3ch((8nw@)txlbbjz7a$mp
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
+
 ALLOWED_HOSTS = ['attendance-app-1-ffls.onrender.com', '127.0.0.1', 'localhost']
 
 # Application definition
@@ -49,7 +50,8 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    'core.middlewares.UserContextMiddleware',  
+    'core.middlewares.ResponseTimeMiddleware',  # Add response time tracking
+    'core.middlewares.UserContextMiddleware',  # Re-enabled for JWT authentication
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.security.SecurityMiddleware',
@@ -97,37 +99,78 @@ DATABASES = {
         'PASSWORD': 'npg_vtwfzPTosQ93',
         'HOST': 'ep-fragrant-sky-a15e5igb-pooler.ap-southeast-1.aws.neon.tech',
         'PORT': '5432',
+        'OPTIONS': {
+            'sslmode': 'require',
+            'connect_timeout': 10,  # Correct parameter name for psycopg2
+            'application_name': 'attendance_app',
+        },
+        'CONN_MAX_AGE': 300,  # Persistent connections for performance
+        'CONN_HEALTH_CHECKS': True,
     }
 }
 
+# Performance optimizations for development
+if DEBUG:
+    # Faster password hashing for development
+    PASSWORD_HASHERS = [
+        'django.contrib.auth.hashers.MD5PasswordHasher',
+    ]
+    
+    # Reduce database connection pooling in development for faster startup
+    DATABASES['default']['CONN_MAX_AGE'] = 0
+    
+else:
+    # Production password hashers
+    PASSWORD_HASHERS = [
+        'django.contrib.auth.hashers.Argon2PasswordHasher',
+        'django.contrib.auth.hashers.PBKDF2PasswordHasher',
+        'django.contrib.auth.hashers.PBKDF2SHA1PasswordHasher',
+        'django.contrib.auth.hashers.BCryptSHA256PasswordHasher',
+    ]
 
-# Create a logger
+
+# Logging configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'formatters': {
+        'simple': {
+            'format': '{levelname} {message}',
+            'style': '{',
+        },
+        'verbose': {
+            'format': '{asctime} - {name} - {levelname} - {message}',
+            'style': '{',
+        },
+    },
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+            'formatter': 'simple' if DEBUG else 'verbose',
+            'level': 'WARNING' if DEBUG else 'INFO',
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'filename': 'app.log',
+            'formatter': 'verbose',
+            'level': 'INFO',
+        },
+    },
+    'root': {
+        'handlers': ['console'] if DEBUG else ['console', 'file'],
+        'level': 'WARNING' if DEBUG else 'INFO',
+    },
+    'loggers': {
+        'django.db.backends': {
+            'level': 'ERROR' if DEBUG else 'WARNING',  # Reduce DB query logging in development
+            'handlers': ['console'],
+            'propagate': False,
+        },
+    },
+}
+
+# Logger reference for backwards compatibility
 logger = logging.getLogger(__name__)
-
-# Set the log level
-logger.setLevel(logging.INFO)
-
-# Create a handler for logging to the console
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.INFO)
-
-# Create a formatter for the console handler
-console_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-console_handler.setFormatter(console_formatter)
-
-# Add the console handler to the logger
-logger.addHandler(console_handler)
-
-# Create a handler for logging to a file
-file_handler = logging.FileHandler('app.log')
-file_handler.setLevel(logging.INFO)
-
-# Create a formatter for the file handler
-file_formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-file_handler.setFormatter(file_formatter)
-
-# Add the file handler to the logger
-logger.addHandler(file_handler)
 
 
 # Password validation
@@ -198,4 +241,3 @@ SIMPLE_JWT = {
 }
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-DEBUG = True  # Set to False in production
