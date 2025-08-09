@@ -557,7 +557,6 @@ class TriggerUnmarkedPushAPIView(APIView):
             day = timezone.localdate()
 
         field_name = self.ATT_TYPE_FIELD_MAP[att_type]
-        branch_id = request.user.branch_id
 
         scopes = []
         if scope == 'class' and scope_id:
@@ -576,35 +575,46 @@ class TriggerUnmarkedPushAPIView(APIView):
 
         notified = []
         for scope_type, sid in scopes:
-            if NotificationLog.objects.filter(branch_id=branch_id, date=day, session_key=att_type, scope_type=scope_type, scope_id=sid).exists():
+            # across all branches
+            if scope_type == 'class':
+                students_base = Student.objects.filter(classroom_id=sid)
+            else:
+                students_base = Student.objects.filter(house_id=sid)
+
+            if not students_base.exists():
                 continue
 
-            if scope_type == 'class':
-                students = Student.objects.filter(branch_id=branch_id, classroom_id=sid)
-            else:
-                students = Student.objects.filter(branch_id=branch_id, house_id=sid)
+            # Notify per-branch within this scope
+            branch_ids = list(students_base.values_list('branch_id', flat=True).distinct())
+            for branch_id in branch_ids:
+                students = students_base.filter(branch_id=branch_id)
+                if not students.exists():
+                    continue
 
-            has_unmarked = Attendance.objects.filter(
-                student__in=students,
-                date=day,
-                **{field_name: 'NOT_MARKED'}
-            ).exists()
-            if has_unmarked:
-                if scope_type == 'class':
-                    class_name = Classroom.objects.filter(id=sid).values_list('name', flat=True).first() or str(sid)
-                    scope_label = f"{class_name}"
-                elif scope_type == 'house':
-                    house_obj = Houses.objects.filter(id=sid).first()
-                    house_name = house_obj.get_name_display() if house_obj else str(sid)
-                    scope_label = f"{house_name}"
+                if NotificationLog.objects.filter(branch_id=branch_id, date=day, session_key=att_type, scope_type=scope_type, scope_id=sid).exists():
+                    continue
 
-                self._send_push_to_branch(
-                    branch_id,
-                    title=f"Notice: {att_type.replace('_', ' ')} attendance",
-                    body=f"Unmarked entries detected for {day} in {scope_label}.",
-                )
-                NotificationLog.objects.create(branch_id=branch_id, date=day, session_key=att_type, scope_type=scope_type, scope_id=sid)
-                notified.append({"scope": scope_type, "id": sid})
+                has_unmarked = Attendance.objects.filter(
+                    student__in=students,
+                    date=day,
+                    **{field_name: 'NOT_MARKED'}
+                ).exists()
+                if has_unmarked:
+                    if scope_type == 'class':
+                        class_name = Classroom.objects.filter(id=sid).values_list('name', flat=True).first() or str(sid)
+                        scope_label = f"{class_name}"
+                    elif scope_type == 'house':
+                        house_obj = Houses.objects.filter(id=sid).first()
+                        house_name = house_obj.get_name_display() if house_obj else str(sid)
+                        scope_label = f"{house_name}"
+
+                    self._send_push_to_branch(
+                        branch_id,
+                        title=f"Notice: {att_type.replace('_', ' ')} attendance",
+                        body=f"Unmarked entries detected for {day} in {scope_label}.",
+                    )
+                    NotificationLog.objects.create(branch_id=branch_id, date=day, session_key=att_type, scope_type=scope_type, scope_id=sid)
+                    notified.append({"scope": scope_type, "id": sid})
 
         return Response({"ok": True, "notified": notified})
 
