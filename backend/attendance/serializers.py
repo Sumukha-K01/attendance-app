@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Classroom, Student, Attendance, Houses
+from .models import Classroom, Student, Attendance, Houses, PushSubscription
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 from accounts.models import Branch
 
@@ -74,3 +74,9 @@ class StudentAPISerializer(serializers.ModelSerializer):
     class Meta:
         model = Student
         fields = '__all__'
+
+
+class PushSubscriptionSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PushSubscription
+        fields = ['endpoint', 'p256dh', 'auth']
