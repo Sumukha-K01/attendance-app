@@ -85,3 +85,34 @@ class Meta:
     unique_together = ('student', 'date')  # Prevent duplicate entries
     
 
+class PushSubscription(models.Model):
+    """Web Push subscription
+    Stores the raw subscription JSON so we can send via VAPID.
+    """
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='push_subscriptions')
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE, null=True, blank=True)
+    endpoint = models.URLField(unique=True)
+    p256dh = models.CharField(max_length=255)
+    auth = models.CharField(max_length=255)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def as_webpush_dict(self) -> dict:
+        return {
+            "endpoint": self.endpoint,
+            "keys": {"p256dh": self.p256dh, "auth": self.auth},
+        }
+
+
+class NotificationLog(models.Model):
+    """Prevents duplicate push notifications for the same attendance window.
+    """
+    branch = models.ForeignKey(Branch, on_delete=models.CASCADE)
+    date = models.DateField()
+    session_key = models.CharField(max_length=50)  # e.g., morning, evening_att, morning_pt, games, night_dorm
+    scope_type = models.CharField(max_length=20)   # 'class' | 'house'
+    scope_id = models.IntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('branch', 'date', 'session_key', 'scope_type', 'scope_id')
