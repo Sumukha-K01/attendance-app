@@ -13,7 +13,7 @@ from .serializers import AttendanceSerializer
 from datetime import datetime
 from rest_framework.parsers import JSONParser
 from django.db.models import OuterRef, Subquery
-from accounts.permisions import IsAdminUser
+from accounts.permisions import IsAdminUser, isCron
 from pywebpush import webpush, WebPushException
 import json, os
 from django.utils import timezone
@@ -534,7 +534,7 @@ class UnsubscribePushAPIView(APIView):
 
 
 class TriggerUnmarkedPushAPIView(APIView):
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [isCron]
     parser_classes = [JSONParser]
     ATT_TYPE_FIELD_MAP = AttendanceAPIView.ATT_TYPE_FIELD_MAP
 
