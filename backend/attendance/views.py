@@ -1,8 +1,8 @@
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from .models import Classroom, Student, Attendance, Houses, AttendanceTypes
-from .serializers import ClassroomSerializer, StudentSerializer,StudentAPISerializer, AttendanceSerializer, HouseSerializer
+from .models import Classroom, Student, Attendance, Houses, AttendanceTypes, PushSubscription, NotificationLog
+from .serializers import ClassroomSerializer, StudentSerializer,StudentAPISerializer, AttendanceSerializer, HouseSerializer, PushSubscriptionSerializer
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -13,7 +13,10 @@ from .serializers import AttendanceSerializer
 from datetime import datetime
 from rest_framework.parsers import JSONParser
 from django.db.models import OuterRef, Subquery
-from accounts.permisions import IsAdminUser
+from accounts.permisions import IsAdminUser, isCron
+from pywebpush import webpush, WebPushException
+import json, os
+from django.utils import timezone
 # import logging
 from core.settings import logger
 
@@ -217,8 +220,7 @@ class DashboardAPIView(APIView):
             attendance_missed = students.count() - attendance_qs.count()
             # add attendance entry for missed students
             # bulk create attendance entries for students who missed marking
-            print(f"Adding attendance for {attendance_missed} students who missed marking on {date
-            }")
+            print(f"Adding attendance for {attendance_missed} students who missed marking on {date}")
             # Create attendance entries for students who missed marking
             Attendance.objects.bulk_create([
                 Attendance(student=student, date=date)
@@ -442,9 +444,160 @@ class BulkAddStudentsAPIView(APIView):
             "created": len(to_create),
             "updated": len(to_update)
         }, status=status.HTTP_200_OK)
-    
-    
 
 
+class SavePushSubscriptionAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [JSONParser]
 
-        
+    def post(self, request, *args, **kwargs):
+        payload = request.data
+        # { endpoint, keys: { p256dh, auth } }
+        endpoint = payload.get('endpoint')
+        keys = payload.get('keys') or {}
+        p256dh = payload.get('p256dh') or keys.get('p256dh')
+        auth = payload.get('auth') or keys.get('auth')
+        if not endpoint or not p256dh or not auth:
+            return Response({"detail": "Invalid subscription payload"}, status=status.HTTP_400_BAD_REQUEST)
+        sub, _ = PushSubscription.objects.update_or_create(
+            endpoint=endpoint,
+            defaults={
+                'user_id': request.user.id,
+                'branch_id': request.user.branch_id,
+                'p256dh': p256dh,
+                'auth': auth,
+            }
+        )
+        return Response({"ok": True}, status=status.HTTP_201_CREATED)
+
+
+class UnsubscribePushAPIView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminUser]
+    parser_classes = [JSONParser]
+
+    def post(self, request, *args, **kwargs):
+        payload = request.data or {}
+        endpoint = payload.get('endpoint')
+        keys = payload.get('keys') or {}
+        p256dh = payload.get('p256dh') or keys.get('p256dh')
+        auth = payload.get('auth') or keys.get('auth')
+        delete_all = bool(payload.get('all'))
+
+        qs = PushSubscription.objects.filter(user_id=request.user.id)
+        if endpoint:
+            qs = qs.filter(endpoint=endpoint)
+        elif p256dh and auth:
+            qs = qs.filter(p256dh=p256dh, auth=auth)
+        elif delete_all:
+            pass
+        else:
+            return Response({"detail": "Provide endpoint or keys {p256dh, auth} or all=true"}, status=status.HTTP_400_BAD_REQUEST)
+
+        deleted_count, _ = qs.delete()
+        return Response({"ok": True, "deleted": deleted_count})
+
+
+class TriggerUnmarkedPushAPIView(APIView):
+    permission_classes = [isCron]
+    parser_classes = [JSONParser]
+    ATT_TYPE_FIELD_MAP = AttendanceAPIView.ATT_TYPE_FIELD_MAP
+
+    def post(self, request, *args, **kwargs):
+        date_str = request.data.get('date')
+        att_type = request.data.get('attendance_type', 'morning')
+        scope = request.data.get('scope')
+        scope_id = request.data.get('scope_id')
+        scope_only = request.data.get('scope_only')  # optional: 'class' | 'house'
+
+        if att_type not in self.ATT_TYPE_FIELD_MAP:
+            return Response({"detail": "valid attendance_type is required"}, status=400)
+
+        if date_str:
+            try:
+                day = datetime.strptime(date_str, '%Y-%m-%d').date()
+            except ValueError:
+                return Response({"detail": "Invalid date format"}, status=400)
+        else:
+            day = timezone.localdate()
+
+        field_name = self.ATT_TYPE_FIELD_MAP[att_type]
+
+        scopes = []
+        if scope == 'class' and scope_id:
+            scopes = [('class', int(scope_id))]
+        elif scope == 'house' and scope_id:
+            scopes = [('house', int(scope_id))]
+        else:
+            class_ids = list(Classroom.objects.values_list('id', flat=True))
+            house_ids = list(Houses.objects.values_list('id', flat=True))
+            if scope_only == 'class':
+                scopes = [('class', cid) for cid in class_ids]
+            elif scope_only == 'house':
+                scopes = [('house', hid) for hid in house_ids]
+            else:
+                scopes = [('class', cid) for cid in class_ids] + [('house', hid) for hid in house_ids]
+
+        notified = []
+        for scope_type, sid in scopes:
+            # across all branches
+            if scope_type == 'class':
+                students_base = Student.objects.filter(classroom_id=sid)
+            else:
+                students_base = Student.objects.filter(house_id=sid)
+
+            if not students_base.exists():
+                continue
+
+            # Notify per-branch within this scope
+            branch_ids = list(students_base.values_list('branch_id', flat=True).distinct())
+            for branch_id in branch_ids:
+                students = students_base.filter(branch_id=branch_id)
+                if not students.exists():
+                    continue
+
+                if NotificationLog.objects.filter(branch_id=branch_id, date=day, session_key=att_type, scope_type=scope_type, scope_id=sid).exists():
+                    continue
+
+                has_unmarked = Attendance.objects.filter(
+                    student__in=students,
+                    date=day,
+                    **{field_name: 'NOT_MARKED'}
+                ).exists()
+                if has_unmarked:
+                    if scope_type == 'class':
+                        class_name = Classroom.objects.filter(id=sid).values_list('name', flat=True).first() or str(sid)
+                        scope_label = f"{class_name}"
+                    elif scope_type == 'house':
+                        house_obj = Houses.objects.filter(id=sid).first()
+                        house_name = house_obj.get_name_display() if house_obj else str(sid)
+                        scope_label = f"{house_name}"
+
+                    self._send_push_to_branch(
+                        branch_id,
+                        title=f"Notice: {att_type.replace('_', ' ')} attendance",
+                        body=f"Unmarked entries detected for {day} in {scope_label}.",
+                    )
+                    NotificationLog.objects.create(branch_id=branch_id, date=day, session_key=att_type, scope_type=scope_type, scope_id=sid)
+                    notified.append({"scope": scope_type, "id": sid})
+
+        return Response({"ok": True, "notified": notified})
+
+    @staticmethod
+    def _send_push_to_branch(branch_id: int, title: str, body: str) -> None:
+
+        # Notify only admins in this branch
+        subs = PushSubscription.objects.filter(branch_id=branch_id, user__role='admin', user__is_active=True)
+        vapid_private = os.environ.get('VAPID_PRIVATE_KEY', 'IrPD0MjfOewL70dJrICeQLY4h_JVdJPKwC-4SbM3vA8')
+        vapid_email = os.environ.get('VAPID_EMAIL', 'mailto:gautam@superadmin.com')
+        if not vapid_private:
+            logger.warning("VAPID_PRIVATE_KEY not set; skipping push send")
+            return
+        payload = json.dumps({"title": title, "body": body})
+        for sub in subs:
+            try:
+                webpush(subscription_info=sub.as_webpush_dict(), data=payload, vapid_private_key=vapid_private, vapid_claims={"sub": vapid_email})
+                logger.info("Push sent to %s", sub.endpoint)
+                logger.info("Push payload: %s", payload)
+                
+            except WebPushException as e:
+                logger.warning("Push send failed for %s: %s", sub.endpoint, str(e))
