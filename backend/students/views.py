@@ -18,10 +18,11 @@ class ResultsAPI(APIView):
         Expects student ID, subject, score, and exam ID in the request data.
         """
         # Validate that the student exists
-        student_id = request.data.get('student')
-        if not student_id:
-            return Response({"error": "Student ID is required."}, status=status.HTTP_400_BAD_REQUEST)
-        student = get_object_or_404(Student, id=student_id)
+        student_roll = request.data.get('student_roll')
+        classroom_id = request.data.get('classroom_id')
+        if not student_roll:
+            return Response({"error": "Student roll number is required."}, status=status.HTTP_400_BAD_REQUEST)
+        student = get_object_or_404(Student, roll_number=student_roll, classroom_id=classroom_id)
         # create or update result
         request.data['student'] = student.id
         # Validate and save the result
