@@ -53,6 +53,133 @@ class ResultsAPI(APIView):
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
     
+class BulkResultsAPI(APIView):
+    # permission_classes = [IsAuthenticated]
+
+    def post(self, request, *args, **kwargs):
+        """
+        Bulk create or update results for multiple students using bulk operations.
+        Expects a list of results in the request data.
+        """
+        results_data = request.data.get('results', [])
+        if not results_data:
+            return Response({"error": "Results data is required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Validate all data first
+        validated_data = []
+        student_dict = {}
+
+        for idx, result_data in enumerate(results_data):
+            try:
+                # Validate required fields
+                student_roll = result_data.get('student_roll')
+                classroom_id = result_data.get('classroom_id')
+                subject = result_data.get('subject')
+                score = result_data.get('score')
+                exam_id = result_data.get('exam')
+                
+                if not all([student_roll, classroom_id, subject, score is not None, exam_id]):
+                    return Response({
+                        "error": f"Missing required fields in result {idx + 1}. Required: student_roll, classroom_id, subject, score, exam"
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Validate score
+                if not isinstance(score, int) or score < 0 or score > 100:
+                    return Response({
+                        "error": f"Invalid score in result {idx + 1}. Score must be an integer between 0 and 100."
+                    }, status=status.HTTP_400_BAD_REQUEST)
+                
+                # Get student (use cache to avoid repeated queries)
+                student_key = f"{student_roll}_{classroom_id}"
+                if student_key not in student_dict:
+                    try:
+                        student = Student.objects.get(roll_number=student_roll, classroom_id=classroom_id)
+                        student_dict[student_key] = student
+                    except Student.DoesNotExist:
+                        return Response({
+                            "error": f"Student with roll number {student_roll} in classroom {classroom_id} not found."
+                        }, status=status.HTTP_400_BAD_REQUEST)
+
+                student = student_dict[student_key]
+
+                validated_data.append({
+                    'student': student,
+                    'student_id': student.id,
+                    'subject': subject,
+                    'score': score,
+                    'exam_id': exam_id,
+                    'original_data': result_data
+                })
+                
+            except Exception as e:
+                return Response({
+                    "error": f"Validation error in result {idx + 1}: {str(e)}"
+                }, status=status.HTTP_400_BAD_REQUEST)
+        
+        # Get existing results for bulk operations
+        student_ids = [data['student_id'] for data in validated_data]
+        subjects = list(set(data['subject'] for data in validated_data))
+        exam_ids = list(set(data['exam_id'] for data in validated_data))
+        
+        existing_results = Results.objects.filter(
+            student_id__in=student_ids,
+            subject__in=subjects,
+            exam_id__in=exam_ids
+        )
+        # print("Existing results:", existing_results)
+        # Create lookup dictionary for existing results
+        existing_lookup = {
+            (result.student_id, result.subject, result.exam_id): result
+            for result in existing_results
+        }
+        
+        # print("Existing results lookup:", existing_lookup)
+        # Separate data into create and update lists
+        to_create = []
+        to_update = []
+        
+        for data in validated_data:
+            key = (data['student_id'], data['subject'], data['exam_id'])
+            # print("Processing data:", data, "Key:", key)
+            if key in existing_lookup:
+                # Update existing result
+                existing_result = existing_lookup[key]
+                existing_result.score = data['score']
+                to_update.append(existing_result)
+            else:
+                # Create new result
+                new_result = Results(
+                    student=data['student'],
+                    subject=data['subject'],
+                    score=data['score'],
+                    exam_id=data['exam_id']
+                )
+                to_create.append(new_result)
+        
+        # Perform bulk operations
+        created_count = 0
+        updated_count = 0
+        
+        try:
+            if to_create:
+                Results.objects.bulk_create(to_create, batch_size=100)
+                created_count = len(to_create)
+            
+            if to_update:
+                Results.objects.bulk_update(to_update, ['score'], batch_size=100)
+                updated_count = len(to_update)
+            
+            return Response({
+                "message": "Bulk operation completed successfully",
+                "created": created_count,
+                "updated": updated_count,
+                "total_processed": len(validated_data)
+            }, status=status.HTTP_200_OK)
+            
+        except Exception as e:
+            return Response({
+                "error": f"Database operation failed: {str(e)}"
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
     
 class StudentResultsDetailAPI(APIView):
     # permission_classes = [IsAuthenticated]
