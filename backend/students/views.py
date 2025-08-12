@@ -224,11 +224,11 @@ class ClassResultDashBoardAPI(APIView):
         base_query = Results.objects.filter(student__classroom_id=classroom_id, student__branch_id=branch_id)
         logger.info("base query: ", base_query)
         # Filter by exam if provided
-        if exam_id:
-            base_query = base_query.filter(exam__id=exam_id)
+        
+        base_query = base_query.filter(exam__id=exam_id)
         
         if not base_query.exists():
-            return Response({"error": "No results found for this classroom."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "No results found for this classroom."}, status=status.HTTP_200_OK)
         
         # Get all unique subjects for this classroom
         subjects = base_query.values_list('subject', flat=True).distinct()
@@ -298,7 +298,9 @@ class ClassResultDashBoardAPI(APIView):
         
         # Get top 5 and bottom 5 overall performers
         top_class_performers = qualified_students[:5]
-        bottom_class_performers = qualified_students[-5:] 
+        # For bottom performers, get the last 5 and reverse them to show lowest first
+        bottom_class_performers = qualified_students[-5:]
+        bottom_class_performers.reverse()  # Reverse to show lowest scores first
         
         classroom_performance['top_class_performers'] = [
             {
@@ -310,13 +312,15 @@ class ClassResultDashBoardAPI(APIView):
             } for idx, performer in enumerate(top_class_performers)
         ]
 
+        # Calculate bottom performers with correct ranking (from lowest to highest)
+        total_students = len(qualified_students)
         classroom_performance['bottom_class_performers'] = [
             {
                 'student_id': performer['student__roll_number'],
                 'student_name': performer['student__name'],
                 'average_percentage': round(performer['avg_score'], 2),
                 'subjects_appeared': performer['subject_count'],
-                'rank': len(qualified_students) - len(bottom_class_performers) + idx + 1
+                'rank': total_students - len(bottom_class_performers) + idx + 1
             } for idx, performer in enumerate(bottom_class_performers)
         ]
         
@@ -354,7 +358,7 @@ class SubjectResultsDashboardAPI(APIView):
             results = results.filter(exam__id=exam_id)
 
         if not results.exists():
-            return Response({"error": "No results found for this subject in the specified classroom."}, status=status.HTTP_404_NOT_FOUND)
+            return Response({"error": "No results found for this subject in the specified classroom."}, status=status.HTTP_200_OK)
         
         # Get top 5 performers (highest scores)
         top_performers = results.order_by('-score', 'student__name')[:5]
