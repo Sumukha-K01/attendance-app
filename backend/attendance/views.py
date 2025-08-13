@@ -322,7 +322,7 @@ class AllStudentAttendanceAPIView(APIView):
                 ordering = f'-{ordering}'
             students = students.order_by(ordering)
 
-        result = students.values('id', 'name', 'classroom__name', 'house__name')
+        result = students.values('roll_number', 'name', 'classroom__name', 'house__name')
         final_response = {
             'total_students': students.count(),
             'date': date,
