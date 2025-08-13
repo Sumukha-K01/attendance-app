@@ -14,7 +14,7 @@ from datetime import datetime
 from rest_framework.parsers import JSONParser
 from django.db.models import OuterRef, Subquery
 from accounts.permisions import IsAdminUser, isCron
-from pywebpush import webpush, WebPushException
+from django.db.models import Case, When, Count, Value, Q        
 import json, os
 from django.utils import timezone
 # import logging
@@ -210,52 +210,59 @@ class DashboardAPIView(APIView):
         # branch_id = 1
         date = request.query_params.get('date')
         
-        
         students = Student.objects.filter(branch_id=branch_id)
         total_students = students.count()   
         # Fetch attendance for those students and date
         attendance_qs = Attendance.objects.filter(student__in=students, date=date)
-        if students.count() != attendance_qs.count() and date > '2025-08-01'  :
-
-            attendance_missed = students.count() - attendance_qs.count()
-            # add attendance entry for missed students
-            # bulk create attendance entries for students who missed marking
+        
+        # Handle missing attendance records
+        if total_students != attendance_qs.count() and date > '2025-08-01':
+            attendance_missed = total_students - attendance_qs.count()
             print(f"Adding attendance for {attendance_missed} students who missed marking on {date}")
+            
+            # Get students who don't have attendance records for this date
+            existing_student_ids = attendance_qs.values_list('student_id', flat=True)
+            missing_students = students.exclude(id__in=existing_student_ids)
+
             # Create attendance entries for students who missed marking
-            Attendance.objects.bulk_create([
-                Attendance(student=student, date=date)
-                for student in students if not attendance_qs.filter(student=student, date=date).exists()
-            ])
+            if missing_students.exists():
+                Attendance.objects.bulk_create([
+                    Attendance(student=student, date=date)
+                    for student in missing_students
+                ], ignore_conflicts=True)
+                
+                # Refresh the queryset after adding missing records
+                attendance_qs = Attendance.objects.filter(student__in=students, date=date)
             
         attendance_fields = [
             'morning_attendance',
-            'evening_class_attendance',
+            'evening_class_attendance', 
             'morning_pt_attendance',
             'games_attendance',
             'night_dorm_attendance'
         ]
 
-        attendance_types = {
-            'present': AttendanceTypes.PRESENT,
-            'absent': AttendanceTypes.ABSENT,
-            'leave': AttendanceTypes.LEAVE,
-            'on_duty': AttendanceTypes.ON_DUTY,
-            'leave_sw': AttendanceTypes.LEAVE_SW,
-            'NOT_MARKED': AttendanceTypes.NOT_MARKED,
-        }
-
+        attendance_types = ['present', 'absent', 'leave', 'on_duty', 'leave_sw', 'NOT_MARKED']
         
-        att_dict = {}
-
-        not_marked_count = attendance_qs.filter(morning_attendance='NOT_MARKED').count()
-        print("Not Marked Count: ", not_marked_count)
+        # Build aggregation dictionary for all fields and types at once
+        aggregation_dict = {}
         for field in attendance_fields:
-            # Initialize counts for each attendance type
-            attendance_counts = {}
-            for label, att_type in attendance_types.items():
-                key = f"{field}_{label}"
-                attendance_counts[key] = attendance_qs.filter(**{field: label}).count()
-            att_dict[field] = attendance_counts
+            for att_type in attendance_types:
+                key = f"{field}_{att_type}"
+                aggregation_dict[key] = Count('id', filter=Q(**{field: att_type}))
+        
+        # Single database query to get all counts
+        attendance_counts = attendance_qs.aggregate(**aggregation_dict)
+        
+        # Restructure the data for response
+        att_dict = {}
+        for field in attendance_fields:
+            field_counts = {}
+            for att_type in attendance_types:
+                key = f"{field}_{att_type}"
+                field_counts[key] = attendance_counts.get(key, 0)
+            att_dict[field] = field_counts
+        
         # Prepare the response data
         response_data = {
             'total_students': total_students,
@@ -282,10 +289,14 @@ class AllStudentAttendanceAPIView(APIView):
         attendance_type = request.query_params.get('attendance_type', 'morning')
         status_value = request.query_params.get('status_value', 'present')
         branch_id = request.user.branch_id
+        # branch_id = 1
         print("date: ",date)
         if not date:
             return Response({"detail": "date query parameter is required."}, status=status.HTTP_400_BAD_REQUEST)
 
+        # derive the key using value on AttendanceTypes where value matches status_value
+        status_value = AttendanceTypes.NOT_MARKED if status_value == 'not_marked' else status_value
+        print(status_value)
         field_name = self.ATT_TYPE_FIELD_MAP.get(attendance_type)
 
         search_query = request.query_params.get('search', '').strip()
