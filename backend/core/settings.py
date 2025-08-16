@@ -241,3 +241,17 @@ SIMPLE_JWT = {
 }
 
 STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
+
+# Email Configuration for Backup System
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = os.environ.get('EMAIL_HOST', 'smtp.gmail.com')
+EMAIL_PORT = int(os.environ.get('EMAIL_PORT', 587))
+EMAIL_USE_TLS = os.environ.get('EMAIL_USE_TLS', 'True').lower() == 'true'
+EMAIL_HOST_USER = os.environ.get('EMAIL_HOST_USER', 'your-email@gmail.com')
+EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', 'your-app-password')
+DEFAULT_FROM_EMAIL = os.environ.get('DEFAULT_FROM_EMAIL', 'JNV Attendance System <your-email@gmail.com>')
+
+# Backup System Configuration
+BACKUP_EMAIL_RECIPIENTS = ['vinodrc3@gmail.com']
+BACKUP_RETENTION_DAYS = 90  # Keep backups for 90 days
+BACKUP_MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB max file size

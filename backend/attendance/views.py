@@ -20,6 +20,7 @@ from django.utils import timezone
 from pywebpush import webpush, WebPushException
 # import logging
 from core.settings import logger
+from .backup_utils import AttendanceBackupManager, get_attendance_summary
 
 class ClassroomViewSet(viewsets.ModelViewSet):
     queryset = Classroom.objects.all()
@@ -613,3 +614,165 @@ class TriggerUnmarkedPushAPIView(APIView):
                 
             except WebPushException as e:
                 logger.warning("Push send failed for %s: %s", sub.endpoint, str(e))
+
+
+class AttendanceBackupAPIView(APIView):
+    """API endpoint for creating and sending Excel attendance backups"""
+    permission_classes = [IsAdminUser]
+    
+    def post(self, request, *args, **kwargs):
+        """
+        Create and send Excel attendance backup
+        
+        Expected payload:
+        {
+            "email": "vinodrc3@gmail.com",
+            "days_back": 30,
+            "branch": "optional_branch_name"
+        }
+        """
+        try:
+            email = request.data.get('email', 'vinodrc3@gmail.com')
+            days_back = int(request.data.get('days_back', 30))
+            branch_name = request.data.get('branch')
+            
+            # Validate input
+            if days_back <= 0 or days_back > 365:
+                return Response(
+                    {"error": "Days back must be between 1 and 365"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            # Create Excel backup
+            backup_manager = AttendanceBackupManager()
+            success = backup_manager.create_full_backup(
+                email=email,
+                days_back=days_back,
+                branch_name=branch_name
+            )
+            
+            if success:
+                return Response({
+                    "message": f"Excel backup successfully sent to {email}",
+                    "details": {
+                        "email": email,
+                        "days_back": days_back,
+                        "format": "Excel (.xlsx)",
+                        "branch": branch_name or "All branches"
+                    }
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response(
+                    {"error": "No attendance data found for the specified period"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+                
+        except ValueError as e:
+            return Response(
+                {"error": f"Invalid input: {str(e)}"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Excel backup failed: {str(e)}")
+            return Response(
+                {"error": "Excel backup failed. Please contact system administrator."}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class AttendanceSummaryAPIView(APIView):
+    """API endpoint for getting attendance summary statistics"""
+    permission_classes = [IsAuthenticated]
+    
+    def get(self, request, *args, **kwargs):
+        """
+        Get attendance summary for specified period
+        
+        Query parameters:
+        - days: Number of days back (default: 7)
+        """
+        try:
+            days_back = int(request.query_params.get('days', 7))
+            
+            if days_back <= 0 or days_back > 365:
+                return Response(
+                    {"error": "Days must be between 1 and 365"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            summary = get_attendance_summary(days=days_back)
+            
+            return Response({
+                "summary": summary,
+                "generated_at": datetime.now().isoformat(),
+                "requested_by": request.user.username
+            }, status=status.HTTP_200_OK)
+            
+        except ValueError as e:
+            return Response(
+                {"error": f"Invalid input: {str(e)}"}, 
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        except Exception as e:
+            logger.error(f"Summary generation failed: {str(e)}")
+            return Response(
+                {"error": "Failed to generate summary. Please contact system administrator."}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
+
+
+class AttendanceQuickBackupAPIView(APIView):
+    """API endpoint for quick Excel backup operations with predefined settings"""
+    permission_classes = [IsAdminUser]
+    
+    def post(self, request, *args, **kwargs):
+        """
+        Quick Excel backup operations
+        
+        Expected payload:
+        {
+            "type": "daily" | "weekly" | "monthly",
+            "email": "optional_email@example.com"
+        }
+        """
+        try:
+            backup_type = request.data.get('type', 'weekly')
+            email = request.data.get('email', 'vinodrc3@gmail.com')
+            
+            backup_manager = AttendanceBackupManager()
+            
+            if backup_type == 'daily':
+                success = backup_manager.schedule_daily_backup(email=email)
+                description = "yesterday's attendance data"
+            elif backup_type == 'weekly':
+                success = backup_manager.schedule_weekly_backup(email=email)
+                description = "last 7 days attendance data"
+            elif backup_type == 'monthly':
+                success = backup_manager.schedule_monthly_backup(email=email)
+                description = "last 30 days attendance data"
+            else:
+                return Response(
+                    {"error": "Type must be 'daily', 'weekly', or 'monthly'"}, 
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+            
+            if success:
+                return Response({
+                    "message": f"Quick {backup_type} Excel backup sent successfully to {email}",
+                    "description": f"Backup includes {description}",
+                    "type": backup_type,
+                    "email": email,
+                    "format": "Excel (.xlsx) with summary sheet"
+                }, status=status.HTTP_200_OK)
+            else:
+                return Response(
+                    {"error": f"No data available for {backup_type} backup"}, 
+                    status=status.HTTP_404_NOT_FOUND
+                )
+                
+        except Exception as e:
+            logger.error(f"Quick Excel backup failed: {str(e)}")
+            return Response(
+                {"error": "Quick Excel backup failed. Please contact system administrator."}, 
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
